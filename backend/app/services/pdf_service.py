@@ -1,4 +1,6 @@
 import io
+import os
+import subprocess
 import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -7,8 +9,9 @@ from typing import IO
 
 from pdf2image import convert_from_bytes
 from PIL import Image
+from pypdf import PdfReader, PdfWriter
 
-from app.config import UPLOAD_DIR, JPG_QUALITY, PDF_DPI
+from app.config import UPLOAD_DIR, JPG_QUALITY, PDF_DPI, SPLIT_MAX_PAGES, COMPRESS_QUALITY, COMPRESS_DPI
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -70,6 +73,140 @@ class PdfService:
             quality=JPG_QUALITY,
         )
         return file_id, total
+
+    @staticmethod
+    def _parse_ranges(ranges_str: str, total_pages: int) -> list[list[int]]:
+        groups: list[list[int]] = []
+        seen: set[int] = set()
+        for part in ranges_str.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start_str, end_str = part.split("-", 1)
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            else:
+                start = end = int(part)
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(
+                    f"Rango inválido: {part}. El PDF tiene {total_pages} páginas (1-{total_pages})."
+                )
+            page_nums = list(range(start, end + 1))
+            if any(p in seen for p in page_nums):
+                raise ValueError(f"Rango {part} se solapa con otro rango.")
+            seen.update(page_nums)
+            groups.append(page_nums)
+        if not groups:
+            raise ValueError("No se especificaron rangos válidos.")
+        return groups
+
+    @staticmethod
+    def _compute_page_groups(
+        total_pages: int, mode: str, every_n: int | None = None, ranges: str | None = None
+    ) -> list[list[int]]:
+        if mode == "all":
+            return [[i] for i in range(1, total_pages + 1)]
+        if mode == "every":
+            n = every_n or 1
+            return [list(range(i, min(i + n, total_pages + 1))) for i in range(1, total_pages + 1, n)]
+        if mode == "ranges":
+            if not ranges:
+                raise ValueError("El modo 'ranges' requiere el parámetro 'ranges'.")
+            return PdfService._parse_ranges(ranges, total_pages)
+        raise ValueError(f"Modo de división desconocido: {mode}")
+
+    def split_pdf(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        mode: str,
+        every_n: int | None = None,
+        ranges: str | None = None,
+    ) -> tuple[str, int, str]:
+        base_name = Path(filename).stem
+        reader = PdfReader(io.BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        if total_pages == 0:
+            raise ValueError("El PDF no contiene páginas.")
+        if total_pages > SPLIT_MAX_PAGES:
+            raise ValueError(
+                f"El PDF tiene {total_pages} páginas. "
+                f"El límite máximo es {SPLIT_MAX_PAGES}."
+            )
+        groups = self._compute_page_groups(total_pages, mode, every_n, ranges)
+        zip_id = uuid.uuid4().hex
+        zip_path = UPLOAD_DIR / f"{zip_id}.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for idx, page_nums in enumerate(groups, start=1):
+                writer = PdfWriter()
+                for pn in page_nums:
+                    writer.add_page(reader.pages[pn - 1])
+                buf = io.BytesIO()
+                writer.write(buf)
+                buf.seek(0)
+                if len(groups) == 1:
+                    zf.writestr(f"{base_name}.pdf", buf.read())
+                else:
+                    zf.writestr(f"{base_name}_parte_{idx}.pdf", buf.read())
+        return base_name, total_pages, zip_id
+
+    def compress_pdf(
+        self, file_bytes: bytes, filename: str, quality: int = COMPRESS_QUALITY, reduce_dpi: bool = True
+    ) -> tuple[str, int, str]:
+        base_name = Path(filename).stem
+        file_id = uuid.uuid4().hex
+        output_path = UPLOAD_DIR / f"{file_id}.pdf"
+
+        try:
+            subprocess.run(["gs", "--version"], capture_output=True, check=True)
+            self._compress_with_gs(file_bytes, output_path, quality)
+            total_pages = len(PdfReader(io.BytesIO(file_bytes)).pages)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            total_pages = self._compress_with_pillow(file_bytes, output_path, quality, reduce_dpi)
+
+        return base_name, total_pages, file_id
+
+    @staticmethod
+    def _compress_with_gs(file_bytes: bytes, output_path: Path, quality: int) -> None:
+        if quality >= 80:
+            pdf_settings = "/printer"
+        elif quality >= 40:
+            pdf_settings = "/ebook"
+        else:
+            pdf_settings = "/screen"
+
+        subprocess.run(
+            [
+                "gs",
+                "-sDEVICE=pdfwrite",
+                "-dCompatibilityLevel=1.4",
+                f"-dPDFSETTINGS={pdf_settings}",
+                "-dNOPAUSE",
+                "-dQUIET",
+                "-dBATCH",
+                "-dNumRenderingThreads=4",
+                f"-sOutputFile={output_path}",
+                "-",
+            ],
+            input=file_bytes,
+            capture_output=True,
+            check=True,
+        )
+
+    @staticmethod
+    def _compress_with_pillow(file_bytes: bytes, output_path: Path, quality: int, reduce_dpi: bool) -> int:
+        dpi = COMPRESS_DPI if reduce_dpi else PDF_DPI
+        images = convert_from_bytes(file_bytes, dpi=dpi)
+        total = len(images)
+        images[0].save(
+            output_path,
+            save_all=True,
+            append_images=images[1:],
+            format="PDF",
+            quality=quality,
+        )
+        return total
 
     @staticmethod
     def get_zip_path(zip_id: str) -> Path:

@@ -317,6 +317,99 @@ header p {
   margin: 2rem 0;
 }
 
+/* ---- Split options ---- */
+.split-options {
+  margin: 1rem 0;
+}
+
+.split-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.split-option input[type="radio"] {
+  accent-color: var(--primary);
+}
+
+.split-number-input {
+  width: 60px;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.split-text-input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-top: 0.3rem;
+}
+
+.split-ranges-input {
+  margin-left: 1.5rem;
+}
+
+.split-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+/* ---- Compress options ---- */
+.compress-options {
+  margin: 1rem 0;
+}
+
+.compress-option {
+  display: block;
+  padding: 0.5rem 0;
+}
+
+.compress-label {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+
+.compress-slider {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.compress-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.compress-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.compress-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.compress-checkbox input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
 /* ---- Reset ---- */
 .reset-container {
   text-align: center;

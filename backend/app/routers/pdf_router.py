@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -124,12 +124,75 @@ async def merge_files(files: list[UploadFile] = File(...)):
 
 
 @router.get("/download-pdf/{file_id}")
-async def download_pdf(file_id: str):
+async def download_pdf(file_id: str, name: str = "documento.pdf"):
     pdf_path = pdf_service.get_pdf_path(file_id)
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF not found")
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        filename="merged_output.pdf",
+        filename=name,
     )
+
+
+@router.post("/compress", response_model=FileResult)
+async def compress_pdf(
+    file: UploadFile = File(...),
+    quality: int = Form(60),
+    reduce_dpi: bool = Form(True),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+
+        base_name, total_pages, file_id = await asyncio.to_thread(
+            pdf_service.compress_pdf, contents, file.filename or "untitled", quality, reduce_dpi
+        )
+        return FileResult(
+            id=file_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.post("/split", response_model=FileResult)
+async def split_pdf(
+    file: UploadFile = File(...),
+    mode: str = Form("all"),
+    every_n: int | None = Form(None),
+    ranges: str | None = Form(None),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+
+        base_name, total_pages, zip_id = await asyncio.to_thread(
+            pdf_service.split_pdf, contents, file.filename or "untitled", mode, every_n, ranges
+        )
+        return FileResult(
+            id=zip_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
