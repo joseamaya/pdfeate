@@ -133,6 +133,90 @@ export async function organizeCleanup(fileId: string): Promise<void> {
   await fetch(`/api/organize/cleanup/${fileId}`, { method: "DELETE" });
 }
 
+export async function extractPages(
+  file: File,
+  pages: string,
+  output: "zip" | "pdf",
+): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("pages", pages);
+  formData.append("output", output);
+
+  const res = await fetch("/api/extract", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Extract failed");
+  }
+
+  return res.json();
+}
+
+export async function addWatermark(
+  file: File,
+  text: string,
+  opacity: number,
+  position: string,
+): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("text", text);
+  formData.append("opacity", String(opacity));
+  formData.append("position", position);
+
+  const res = await fetch("/api/watermark", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Watermark failed");
+  }
+
+  return res.json();
+}
+
+export async function protectPdf(file: File, password: string): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("password", password);
+
+  const res = await fetch("/api/protect", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Protect failed");
+  }
+
+  return res.json();
+}
+
+export async function unlockPdf(file: File, password: string): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("password", password);
+
+  const res = await fetch("/api/unlock", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Unlock failed");
+  }
+
+  return res.json();
+}
+
 export function getDownloadUrl(id: string): string {
   return `/api/download/${id}`;
 }

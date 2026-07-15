@@ -8,6 +8,10 @@ import SplitResult from "./components/SplitResult";
 import CompressUpload from "./components/CompressUpload";
 import CompressResult from "./components/CompressResult";
 import OrganizeUpload from "./components/OrganizeUpload";
+import ExtractUpload from "./components/ExtractUpload";
+import WatermarkUpload from "./components/WatermarkUpload";
+import ProtectUpload from "./components/ProtectUpload";
+import UnlockUpload from "./components/UnlockUpload";
 import type { UploadResult } from "./api/client";
 import { uploadPdfs, mergeUpload, splitPdf, compressPdf } from "./api/client";
 import "./App.css";
@@ -85,7 +89,7 @@ export default function App() {
     <div className="container">
       <header>
         <h1>PDFeate</h1>
-        <p>Sube PDFs e imágenes para convertirlos, unirlos, dividirlos u organizarlos</p>
+        <p>Sube PDFs e imágenes para convertirlos, unirlos, dividirlos, organizarlos y más</p>
       </header>
 
       <section className="section">
@@ -149,6 +153,38 @@ export default function App() {
         <p className="section-desc">Reordena, rota y elimina páginas con arrastrar y soltar</p>
 
         <OrganizeUpload />
+      </section>
+
+      <hr className="section-divider" />
+
+      <section className="section">
+        <h2 className="section-title">Extraer páginas</h2>
+        <p className="section-desc">Extrae páginas específicas de un PDF como archivos individuales o un PDF único</p>
+        <ExtractUpload />
+      </section>
+
+      <hr className="section-divider" />
+
+      <section className="section">
+        <h2 className="section-title">Añadir marca de agua</h2>
+        <p className="section-desc">Superpone texto en cada página del PDF</p>
+        <WatermarkUpload />
+      </section>
+
+      <hr className="section-divider" />
+
+      <section className="section">
+        <h2 className="section-title">Proteger PDF</h2>
+        <p className="section-desc">Añade una contraseña para proteger el PDF</p>
+        <ProtectUpload />
+      </section>
+
+      <hr className="section-divider" />
+
+      <section className="section">
+        <h2 className="section-title">Quitar contraseña</h2>
+        <p className="section-desc">Elimina la protección por contraseña de un PDF</p>
+        <UnlockUpload />
       </section>
 
       <hr className="section-divider" />

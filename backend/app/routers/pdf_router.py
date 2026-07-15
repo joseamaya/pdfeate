@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from app.config import ALLOWED_EXTENSIONS, ALLOWED_MERGE_EXTENSIONS, MAX_FILE_SIZE
+from app.config import ALLOWED_EXTENSIONS, ALLOWED_MERGE_EXTENSIONS, MAX_FILE_SIZE, IMAGE_EXTENSIONS
 from app.services.pdf_service import PdfService
 
 router = APIRouter(prefix="/api", tags=["pdf"])
@@ -104,6 +104,137 @@ async def merge_files(files: list[UploadFile] = File(...)):
                 status="error",
                 error_detail=str(exc),
             )
+
+
+@router.post("/extract", response_model=FileResult)
+async def extract_pages(
+    file: UploadFile = File(...),
+    pages: str = Form(...),
+    output: str = Form("zip"),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+        if output not in ("zip", "pdf"):
+            raise HTTPException(status_code=400, detail="output debe ser 'zip' o 'pdf'.")
+
+        base_name, count, out_id = await asyncio.to_thread(
+            pdf_service.extract_pages, contents, file.filename or "untitled", pages, output
+        )
+        return FileResult(
+            id=out_id,
+            filename=file.filename or "untitled",
+            page_count=count,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.post("/watermark", response_model=FileResult)
+async def add_watermark(
+    file: UploadFile = File(...),
+    text: str = Form(...),
+    opacity: float = Form(0.3),
+    position: str = Form("center"),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+        if position not in ("center", "top-left", "bottom-right"):
+            raise HTTPException(status_code=400, detail="Posición inválida.")
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="El texto no puede estar vacío.")
+
+        base_name, total_pages, file_id = await asyncio.to_thread(
+            pdf_service.add_watermark, contents, file.filename or "untitled", text, opacity, position
+        )
+        return FileResult(
+            id=file_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.post("/protect", response_model=FileResult)
+async def protect_pdf(
+    file: UploadFile = File(...),
+    password: str = Form(...),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+        if len(password) < 4:
+            raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 4 caracteres.")
+
+        base_name, total_pages, file_id = await asyncio.to_thread(
+            pdf_service.protect_pdf, contents, file.filename or "untitled", password
+        )
+        return FileResult(
+            id=file_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.post("/unlock", response_model=FileResult)
+async def unlock_pdf(
+    file: UploadFile = File(...),
+    password: str = Form(...),
+):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+
+        base_name, total_pages, file_id = await asyncio.to_thread(
+            pdf_service.unlock_pdf, contents, file.filename or "untitled", password
+        )
+        return FileResult(
+            id=file_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
 
 
 class PageOp(BaseModel):

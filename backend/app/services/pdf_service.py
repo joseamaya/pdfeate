@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import IO
 
 from pdf2image import convert_from_bytes
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader, PdfWriter
 
 from app.config import (
@@ -288,6 +288,152 @@ class PdfService:
             pdf_path.unlink()
         for p in UPLOAD_DIR.glob(f"{file_id}_thumb_*.jpg"):
             p.unlink()
+
+    @staticmethod
+    def _parse_pages_list(pages_str: str, total_pages: int) -> list[int]:
+        pages: list[int] = []
+        seen: set[int] = set()
+        for part in pages_str.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start_str, end_str = part.split("-", 1)
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            else:
+                start = end = int(part)
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(
+                    f"Rango inválido: {part}. El PDF tiene {total_pages} páginas (1-{total_pages})."
+                )
+            for pn in range(start, end + 1):
+                if pn in seen:
+                    raise ValueError(f"Página {pn} duplicada.")
+                seen.add(pn)
+                pages.append(pn)
+        if not pages:
+            raise ValueError("No se especificaron páginas válidas.")
+        return pages
+
+    def extract_pages(self, file_bytes: bytes, filename: str, pages_str: str, output_mode: str = "zip") -> tuple[str, int, str]:
+        base_name = Path(filename).stem
+        reader = PdfReader(io.BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        if total_pages == 0:
+            raise ValueError("El PDF no contiene páginas.")
+        page_nums = self._parse_pages_list(pages_str, total_pages)
+
+        if output_mode == "pdf":
+            writer = PdfWriter()
+            for pn in page_nums:
+                writer.add_page(reader.pages[pn - 1])
+            file_id = uuid.uuid4().hex
+            output_path = UPLOAD_DIR / f"{file_id}.pdf"
+            writer.write(output_path)
+            return base_name, len(page_nums), file_id
+        else:
+            zip_id = uuid.uuid4().hex
+            zip_path = UPLOAD_DIR / f"{zip_id}.zip"
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for pn in page_nums:
+                    writer = PdfWriter()
+                    writer.add_page(reader.pages[pn - 1])
+                    buf = io.BytesIO()
+                    writer.write(buf)
+                    buf.seek(0)
+                    zf.writestr(f"{base_name}_pagina_{pn}.pdf", buf.read())
+            return base_name, len(page_nums), zip_id
+
+    def add_watermark(self, file_bytes: bytes, filename: str, text: str, opacity: float = 0.3, position: str = "center") -> tuple[str, int, str]:
+        if not text:
+            raise ValueError("El texto de la marca de agua no puede estar vacío.")
+        base_name = Path(filename).stem
+        images = convert_from_bytes(file_bytes, dpi=PDF_DPI)
+        total = len(images)
+
+        result_images: list[Image.Image] = []
+        font = None
+        for path in [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ]:
+            if Path(path).exists():
+                font = ImageFont.truetype(path, size=48)
+                break
+
+        for img in images:
+            overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
+
+            alpha = int(255 * max(0.0, min(1.0, opacity)))
+            bbox = draw.textbbox((0, 0), text, font=font)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+
+            if position == "center":
+                x = (img.width - tw) // 2
+                y = (img.height - th) // 2
+            elif position == "top-left":
+                x = y = 30
+            elif position == "bottom-right":
+                x = img.width - tw - 30
+                y = img.height - th - 30
+            else:
+                x = (img.width - tw) // 2
+                y = (img.height - th) // 2
+
+            draw.text((x, y), text, fill=(128, 128, 128, alpha), font=font)
+            img_rgba = img.convert("RGBA")
+            watermarked = Image.alpha_composite(img_rgba, overlay)
+            result_images.append(watermarked.convert("RGB"))
+
+        file_id = uuid.uuid4().hex
+        output_path = UPLOAD_DIR / f"{file_id}.pdf"
+        result_images[0].save(
+            output_path,
+            save_all=True,
+            append_images=result_images[1:],
+            format="PDF",
+            quality=JPG_QUALITY,
+        )
+        return base_name, total, file_id
+
+    @staticmethod
+    def protect_pdf(file_bytes: bytes, filename: str, password: str) -> tuple[str, int, str]:
+        if not password:
+            raise ValueError("La contraseña no puede estar vacía.")
+        base_name = Path(filename).stem
+        reader = PdfReader(io.BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        writer.encrypt(user_password=password, owner_password=None)
+        file_id = uuid.uuid4().hex
+        output_path = UPLOAD_DIR / f"{file_id}.pdf"
+        writer.write(output_path)
+        return base_name, total_pages, file_id
+
+    @staticmethod
+    def unlock_pdf(file_bytes: bytes, filename: str, password: str) -> tuple[str, int, str]:
+        if not password:
+            raise ValueError("La contraseña no puede estar vacía.")
+        base_name = Path(filename).stem
+        reader = PdfReader(io.BytesIO(file_bytes))
+        if reader.is_encrypted:
+            try:
+                reader.decrypt(password)
+            except Exception:
+                raise ValueError("Contraseña incorrecta.")
+        total_pages = len(reader.pages)
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        file_id = uuid.uuid4().hex
+        output_path = UPLOAD_DIR / f"{file_id}.pdf"
+        writer.write(output_path)
+        return base_name, total_pages, file_id
 
     @staticmethod
     def get_zip_path(zip_id: str) -> Path:
