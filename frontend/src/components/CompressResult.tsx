@@ -11,26 +11,26 @@ export default function CompressResult({ result }: CompressResultProps) {
   const downloadName = result.filename.replace(/\.pdf$/i, "_comprimido.pdf");
 
   return (
-    <div className={`file-row status-${result.status}`}>
-      <div className="file-info">
-        <span className="file-name">{result.filename}</span>
+    <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-medium text-sm truncate">{result.filename}</span>
         {result.status === "completed" && (
-          <span className="badge">{result.page_count} páginas</span>
+          <span className="inline-block bg-primary-light text-primary text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">{result.page_count} páginas</span>
         )}
       </div>
 
-      <div className="file-actions">
+      <div className="flex items-center gap-3 flex-shrink-0">
         {result.status === "completed" && result.id && (
-          <a className="btn-download" href={getPdfDownloadUrl(result.id, downloadName)} download={downloadName}>
+          <a className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-colors hover:bg-green-700 inline-block" href={getPdfDownloadUrl(result.id, downloadName)} download={downloadName}>
             Descargar PDF
           </a>
         )}
         {result.status === "error" && (
-          <span className="error-text" title={result.error_detail ?? ""}>
+          <span className="text-error text-xs max-w-40 truncate" title={result.error_detail ?? ""}>
             {result.error_detail}
           </span>
         )}
-        <span className={`status-dot ${result.status}`} />
+        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.status === "completed" ? "bg-success" : result.status === "error" ? "bg-error" : "bg-text-secondary"}`} />
       </div>
     </div>
   );

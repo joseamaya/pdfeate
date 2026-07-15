@@ -31,9 +31,9 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
   }
 
   return (
-    <div className="upload-section">
+    <div className="max-w-2xl mx-auto px-6 py-8">
       <div
-        className={`drop-zone ${dragOver ? "drag-over" : ""}`}
+        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -46,25 +46,25 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
           style={{ display: "none" }}
           onChange={(e) => handleFiles(e.target.files)}
         />
-        <p className="drop-text">
+        <p className="text-text-secondary">
           Arrastra un PDF aquí o haz clic para seleccionarlo
         </p>
       </div>
 
       {selectedFile && (
-        <div className="file-preview">
-          <h3>Archivo seleccionado</h3>
-          <ul className="file-list">
-            <li>
+        <div className="mt-4 bg-card border border-border rounded-xl p-4">
+          <h3 className="text-md font-semibold mb-2">Archivo seleccionado</h3>
+          <ul className="space-y-2">
+            <li className="flex justify-between items-center py-1.5 border-b border-border last:border-b-0 text-sm">
               <span>{selectedFile.name}</span>
-              <button type="button" className="btn-remove" onClick={removeFile} disabled={uploading}>
+              <button type="button" className="text-error bg-transparent border-none cursor-pointer text-lg p-0.5 hover:text-red-700" onClick={removeFile} disabled={uploading}>
                 ✕
               </button>
             </li>
           </ul>
 
-          <div className="split-options">
-            <label className="split-option">
+          <div className="space-y-3 mt-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="radio"
                 name="split-mode"
@@ -75,7 +75,7 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
               <span>Todas las páginas (una por PDF)</span>
             </label>
 
-            <label className="split-option">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="radio"
                 name="split-mode"
@@ -86,7 +86,7 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
               <span>Cada </span>
               <input
                 type="number"
-                className="split-number-input"
+                className="w-16 p-1 border border-border rounded text-sm text-center"
                 min={1}
                 value={everyN}
                 disabled={mode !== "every"}
@@ -95,7 +95,7 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
               <span> páginas</span>
             </label>
 
-            <label className="split-option">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input
                 type="radio"
                 name="split-mode"
@@ -107,20 +107,20 @@ export default function SplitUpload({ onUpload, uploading }: SplitUploadProps) {
             </label>
 
             {mode === "ranges" && (
-              <div className="split-ranges-input">
+              <div className="mt-2 space-y-1">
                 <input
                   type="text"
-                  className="split-text-input"
+                  className="w-full p-2 border border-border rounded-md text-sm"
                   placeholder="Ej: 1-3, 5, 7-9"
                   value={ranges}
                   onChange={(e) => setRanges(e.target.value)}
                 />
-                <span className="split-hint">Ej: 1-3, 5, 7-9</span>
+                <span className="text-xs text-text-secondary">Ej: 1-3, 5, 7-9</span>
               </div>
             )}
           </div>
 
-          <button className="btn-upload" onClick={handleSubmit} disabled={uploading || !selectedFile}>
+          <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed mt-4" onClick={handleSubmit} disabled={uploading || !selectedFile}>
             {uploading ? "Dividiendo..." : "Dividir PDF"}
           </button>
         </div>

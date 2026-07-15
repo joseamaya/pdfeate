@@ -37,6 +37,30 @@ npm run dev        # dev server
 npm run build      # tsc + vite build
 npx tsc --noEmit   # type-check only (fast)
 npm run lint       # eslint
+npx vitest run     # unit tests (vitest + testing-library)
 ```
 
-No test suite, no CI, no `pyproject.toml`. Python deps in `backend/requirements.txt`.
+## Backend tests
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/ -v   # API tests (pytest + httpx)
+```
+
+## Key frontend modules
+
+| File | Role |
+|---|---|
+| `src/features/*.tsx` | Self-contained PDF operation sections |
+| `src/hooks/usePdfOperation.ts` | Generic loading/error/result state hook |
+| `src/hooks/useFileUpload.ts` | File selection & drag-drop state hook |
+| `src/components/` | Reusable UI components (Tailwind CSS v4) |
+| `src/api/client.ts` | All fetch calls to `/api/*` |
+| `src/index.css` | Tailwind v4 entry + custom theme tokens |
+
+### Styling
+
+Uses **Tailwind CSS v4** with custom theme tokens defined in `index.css`:
+`primary`, `primary-hover`, `primary-light`, `success`, `error`, `bg`, `card`, `border`, `text`, `text-secondary`.
+
+## Python deps in `backend/requirements.txt`.

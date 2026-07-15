@@ -105,6 +105,23 @@ async def merge_files(files: list[UploadFile] = File(...)):
                 error_detail=str(exc),
             )
 
+    try:
+        file_id, total_pages = await asyncio.to_thread(
+            pdf_service.merge_files, file_data
+        )
+        return FileResult(
+            id=file_id,
+            filename="merged_output.pdf",
+            page_count=total_pages,
+            status="completed",
+        )
+    except Exception as exc:
+        return FileResult(
+            filename="merged_output.pdf",
+            status="error",
+            error_detail=str(exc),
+        )
+
 
 @router.post("/extract", response_model=FileResult)
 async def extract_pages(
@@ -316,23 +333,6 @@ async def organize_apply(req: OrganizeApplyRequest):
 async def organize_cleanup(file_id: str):
     await asyncio.to_thread(pdf_service.cleanup_organize, file_id)
     return Response(status_code=204)
-
-    try:
-        file_id, total_pages = await asyncio.to_thread(
-            pdf_service.merge_files, file_data
-        )
-        return FileResult(
-            id=file_id,
-            filename="merged_output.pdf",
-            page_count=total_pages,
-            status="completed",
-        )
-    except Exception as exc:
-        return FileResult(
-            filename="merged_output.pdf",
-            status="error",
-            error_detail=str(exc),
-        )
 
 
 @router.get("/download-pdf/{file_id}")

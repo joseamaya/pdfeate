@@ -1,246 +1,109 @@
-import { useState } from "react";
-import FileUpload from "./components/FileUpload";
-import FileList from "./components/FileList";
-import MergeUpload from "./components/MergeUpload";
-import MergeResult from "./components/MergeResult";
-import SplitUpload from "./components/SplitUpload";
-import SplitResult from "./components/SplitResult";
-import CompressUpload from "./components/CompressUpload";
-import CompressResult from "./components/CompressResult";
+import ConvertSection from "./features/ConvertSection";
+import MergeSection from "./features/MergeSection";
+import SplitSection from "./features/SplitSection";
+import CompressSection from "./features/CompressSection";
 import OrganizeUpload from "./components/OrganizeUpload";
 import ExtractUpload from "./components/ExtractUpload";
 import WatermarkUpload from "./components/WatermarkUpload";
 import ProtectUpload from "./components/ProtectUpload";
 import UnlockUpload from "./components/UnlockUpload";
-import type { UploadResult } from "./api/client";
-import { uploadPdfs, mergeUpload, splitPdf, compressPdf } from "./api/client";
-import "./App.css";
 
 export default function App() {
-  const [results, setResults] = useState<UploadResult[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [merging, setMerging] = useState(false);
-  const [mergeResult, setMergeResult] = useState<UploadResult | null>(null);
-  const [splitting, setSplitting] = useState(false);
-  const [splitResult, setSplitResult] = useState<UploadResult | null>(null);
-  const [compressing, setCompressing] = useState(false);
-  const [compressResult, setCompressResult] = useState<UploadResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [mergeError, setMergeError] = useState<string | null>(null);
-  const [splitError, setSplitError] = useState<string | null>(null);
-  const [compressError, setCompressError] = useState<string | null>(null);
-
-  async function handleUpload(files: File[]) {
-    setUploading(true);
-    setError(null);
-    try {
-      const data = await uploadPdfs(files);
-      setResults((prev) => [...prev, ...data]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al subir los archivos");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function handleMerge(files: File[]) {
-    setMerging(true);
-    setMergeError(null);
-    setMergeResult(null);
-    try {
-      const data = await mergeUpload(files);
-      setMergeResult(data);
-    } catch (err) {
-      setMergeError(err instanceof Error ? err.message : "Error al unir los archivos");
-    } finally {
-      setMerging(false);
-    }
-  }
-
-  async function handleSplit(file: File, mode: string, everyN?: number, ranges?: string) {
-    setSplitting(true);
-    setSplitError(null);
-    setSplitResult(null);
-    try {
-      const data = await splitPdf(file, mode, everyN, ranges);
-      setSplitResult(data);
-    } catch (err) {
-      setSplitError(err instanceof Error ? err.message : "Error al dividir el PDF");
-    } finally {
-      setSplitting(false);
-    }
-  }
-
-  async function handleCompress(file: File, quality: number, reduceDpi: boolean) {
-    setCompressing(true);
-    setCompressError(null);
-    setCompressResult(null);
-    try {
-      const data = await compressPdf(file, quality, reduceDpi);
-      setCompressResult(data);
-    } catch (err) {
-      setCompressError(err instanceof Error ? err.message : "Error al comprimir el PDF");
-    } finally {
-      setCompressing(false);
-    }
-  }
-
   return (
-    <div className="container">
-      <header>
-        <h1>PDFeate</h1>
-        <p>Sube PDFs e imágenes para convertirlos, unirlos, dividirlos, organizarlos y más</p>
+    <div className="max-w-3xl mx-auto px-6 py-8">
+      <header className="text-center mb-8">
+        <h1 className="text-3xl text-primary font-bold">PDFeate</h1>
+        <p className="text-text-secondary mt-1">
+          Sube PDFs e imágenes para convertirlos, unirlos, dividirlos, organizarlos y más
+        </p>
       </header>
 
-      <section className="section">
-        <h2 className="section-title">Unir PDFs e imágenes</h2>
-        <p className="section-desc">Sube archivos en cualquier orden y obtén un único PDF con todas las páginas</p>
-
-        <MergeUpload onUpload={handleMerge} uploading={merging} />
-
-        {mergeError && <div className="error-banner">{mergeError}</div>}
-
-        {merging && (
-          <div className="loader-container">
-            <div className="loader" />
-            <span>Uniendo archivos...</span>
-          </div>
-        )}
-
-        <MergeResult result={mergeResult} />
-
-        {mergeResult && (
-          <div className="reset-container">
-            <button className="btn-reset" onClick={() => setMergeResult(null)}>
-              Limpiar
-            </button>
-          </div>
-        )}
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Unir PDFs e imágenes</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Sube archivos en cualquier orden y obtén un único PDF con todas las páginas
+        </p>
+        <MergeSection />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Dividir PDF</h2>
-        <p className="section-desc">Divide un PDF en varios archivos separados por página, grupos o rangos</p>
-
-        <SplitUpload onUpload={handleSplit} uploading={splitting} />
-
-        {splitError && <div className="error-banner">{splitError}</div>}
-
-        {splitting && (
-          <div className="loader-container">
-            <div className="loader" />
-            <span>Dividiendo PDF...</span>
-          </div>
-        )}
-
-        <SplitResult result={splitResult} />
-
-        {splitResult && (
-          <div className="reset-container">
-            <button className="btn-reset" onClick={() => setSplitResult(null)}>
-              Limpiar
-            </button>
-          </div>
-        )}
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Dividir PDF</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Divide un PDF en varios archivos separados por página, grupos o rangos
+        </p>
+        <SplitSection />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Organizar páginas</h2>
-        <p className="section-desc">Reordena, rota y elimina páginas con arrastrar y soltar</p>
-
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Organizar páginas</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Reordena, rota y elimina páginas con arrastrar y soltar
+        </p>
         <OrganizeUpload />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Extraer páginas</h2>
-        <p className="section-desc">Extrae páginas específicas de un PDF como archivos individuales o un PDF único</p>
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Extraer páginas</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Extrae páginas específicas de un PDF como archivos individuales o un PDF único
+        </p>
         <ExtractUpload />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Añadir marca de agua</h2>
-        <p className="section-desc">Superpone texto en cada página del PDF</p>
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Añadir marca de agua</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Superpone texto en cada página del PDF
+        </p>
         <WatermarkUpload />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Proteger PDF</h2>
-        <p className="section-desc">Añade una contraseña para proteger el PDF</p>
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Proteger PDF</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Añade una contraseña para proteger el PDF
+        </p>
         <ProtectUpload />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Quitar contraseña</h2>
-        <p className="section-desc">Elimina la protección por contraseña de un PDF</p>
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Quitar contraseña</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Elimina la protección por contraseña de un PDF
+        </p>
         <UnlockUpload />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Comprimir PDF</h2>
-        <p className="section-desc">Reduce el tamaño del PDF ajustando la calidad de imagen y resolución</p>
-
-        <CompressUpload onUpload={handleCompress} uploading={compressing} />
-
-        {compressError && <div className="error-banner">{compressError}</div>}
-
-        {compressing && (
-          <div className="loader-container">
-            <div className="loader" />
-            <span>Comprimiendo PDF...</span>
-          </div>
-        )}
-
-        <CompressResult result={compressResult} />
-
-        {compressResult && (
-          <div className="reset-container">
-            <button className="btn-reset" onClick={() => setCompressResult(null)}>
-              Limpiar
-            </button>
-          </div>
-        )}
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Comprimir PDF</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Reduce el tamaño del PDF ajustando la calidad de imagen y resolución
+        </p>
+        <CompressSection />
       </section>
 
-      <hr className="section-divider" />
+      <hr className="border-none border-t border-border my-8" />
 
-      <section className="section">
-        <h2 className="section-title">Convertir PDF a JPG</h2>
-        <p className="section-desc">Convierte cada página de un PDF a imágenes JPG y descarga como ZIP</p>
-
-        <FileUpload onUpload={handleUpload} uploading={uploading} />
-
-        {error && <div className="error-banner">{error}</div>}
-
-        {uploading && (
-          <div className="loader-container">
-            <div className="loader" />
-            <span>Procesando PDFs...</span>
-          </div>
-        )}
-
-        <FileList results={results} />
-
-        {results.length > 0 && (
-          <div className="reset-container">
-            <button className="btn-reset" onClick={() => setResults([])}>
-              Limpiar todo
-            </button>
-          </div>
-        )}
+      <section className="mt-2">
+        <h2 className="text-lg font-semibold text-text mb-1">Convertir PDF a JPG</h2>
+        <p className="text-sm text-text-secondary mb-4">
+          Convierte cada página de un PDF a imágenes JPG y descarga como ZIP
+        </p>
+        <ConvertSection />
       </section>
     </div>
   );

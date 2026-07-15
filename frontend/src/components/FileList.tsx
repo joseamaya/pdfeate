@@ -12,11 +12,11 @@ export default function FileList({ results }: FileListProps) {
   const errors = results.filter((r) => r.status === "error").length;
 
   return (
-    <div className="results-section">
-      <div className="results-summary">
+    <div className="mt-6">
+      <div className="flex items-center gap-3 text-sm text-text-secondary mb-3">
         <span>{results.length} archivo(s) procesado(s)</span>
-        <span className="summary-completed">{completed} completado(s)</span>
-        {errors > 0 && <span className="summary-errors">{errors} fallido(s)</span>}
+        <span className="text-success">{completed} completado(s)</span>
+        {errors > 0 && <span className="text-error">{errors} fallido(s)</span>}
       </div>
       {results.map((result, i) => (
         <FileRow key={i} result={result} />

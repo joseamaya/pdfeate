@@ -28,9 +28,9 @@ export default function FileUpload({ onUpload, uploading }: FileUploadProps) {
   }
 
   return (
-    <div className="upload-section">
+    <div className="max-w-2xl mx-auto px-6 py-8">
       <div
-        className={`drop-zone ${dragOver ? "drag-over" : ""}`}
+        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -51,21 +51,21 @@ export default function FileUpload({ onUpload, uploading }: FileUploadProps) {
           style={{ display: "none" }}
           onChange={(e) => handleFiles(e.target.files)}
         />
-        <p className="drop-text">
+        <p className="text-text-secondary">
           Arrastra los PDFs aquí o haz clic para seleccionarlos
         </p>
       </div>
 
       {selectedFiles.length > 0 && (
-        <div className="file-preview">
-          <h3>{selectedFiles.length} archivo(s) seleccionado(s)</h3>
-          <ul className="file-list">
+        <div className="mt-4 bg-card border border-border rounded-xl p-4">
+          <h3 className="text-md font-semibold mb-2">{selectedFiles.length} archivo(s) seleccionado(s)</h3>
+          <ul className="space-y-2">
             {selectedFiles.map((file, i) => (
-              <li key={i}>
+              <li key={i} className="flex justify-between items-center py-1.5 border-b border-border last:border-b-0 text-sm">
                 <span>{file.name}</span>
                 <button
                   type="button"
-                  className="btn-remove"
+                  className="text-error bg-transparent border-none cursor-pointer text-lg p-0.5 hover:text-red-700"
                   onClick={() => removeFile(i)}
                   disabled={uploading}
                 >
@@ -75,7 +75,7 @@ export default function FileUpload({ onUpload, uploading }: FileUploadProps) {
             ))}
           </ul>
           <button
-            className="btn-upload"
+            className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed mt-3"
             onClick={handleSubmit}
             disabled={uploading}
           >
