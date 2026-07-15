@@ -1,6 +1,10 @@
 import { useRef, useState } from "react";
 import { unlockPdf, getPdfDownloadUrl } from "../api/client";
 import type { UploadResult } from "../api/client";
+import ProgressBar from "./ProgressBar";
+import ErrorState from "./ErrorState";
+import EmptyState from "./EmptyState";
+import { useToast } from "./Toast";
 
 type Phase = "upload" | "result";
 
@@ -11,8 +15,10 @@ export default function UnlockUpload() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<UploadResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   function handleFiles(files: FileList | null) {
     if (!files) return;
@@ -26,10 +32,12 @@ export default function UnlockUpload() {
     if (!selectedFile || !password) return;
     setLoading(true);
     setError(null);
+    setProgress(0);
     try {
-      const data = await unlockPdf(selectedFile, password);
+      const data = await unlockPdf(selectedFile, password, setProgress);
       setResult(data);
       setPhase("result");
+      toast("PDF desbloqueado correctamente", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al desbloquear el PDF");
     } finally {
@@ -43,20 +51,21 @@ export default function UnlockUpload() {
     setError(null);
     setSelectedFile(null);
     setPassword("");
+    setProgress(0);
   }
 
   if (phase === "result") {
     const downloadName = result?.filename?.replace(/\.pdf$/i, "_desbloqueado.pdf");
     return (
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2">
+      <div className="animate-fade-in">
+        <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2 transition-all hover:shadow-sm">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium text-sm truncate">{result?.filename}</span>
             {result?.status === "completed" && <span className="inline-block bg-primary-light text-primary text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">{result.page_count} páginas</span>}
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {result?.status === "completed" && result?.id && (
-              <a className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-colors hover:bg-green-700 inline-block" href={getPdfDownloadUrl(result.id, downloadName)} download>
+              <a className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-all hover:bg-green-700 inline-block" href={getPdfDownloadUrl(result.id, downloadName)} download>
                 Descargar PDF desbloqueado
               </a>
             )}
@@ -67,16 +76,26 @@ export default function UnlockUpload() {
           </div>
         </div>
         <div className="mt-4 text-center">
-          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-colors hover:bg-stone-300" onClick={handleReset}>Desbloquear otro PDF</button>
+          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-all hover:bg-stone-300" onClick={handleReset}>Desbloquear otro PDF</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div>
+      {!selectedFile && !loading && !error && (
+        <EmptyState
+          icon="🔓"
+          title="Quita la contraseña de un PDF"
+          description="Elimina la protección por contraseña de tus documentos"
+        />
+      )}
+
       <div
-        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
+        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer bg-card transition-all hover:border-primary hover:bg-primary-light ${
+          dragOver ? "border-primary bg-primary-light scale-[1.01]" : "border-border"
+        }`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -88,14 +107,11 @@ export default function UnlockUpload() {
       </div>
 
       {selectedFile && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
-          <h3 className="text-md font-semibold mb-2">Archivo seleccionado</h3>
-          <ul className="space-y-2">
-            <li className="flex justify-between items-center py-1.5 border-b border-border last:border-b-0 text-sm">
-              <span>{selectedFile.name}</span>
-              <button type="button" className="text-error bg-transparent border-none cursor-pointer text-lg p-0.5 hover:text-red-700" onClick={() => setSelectedFile(null)} disabled={loading}>✕</button>
-            </li>
-          </ul>
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
+          <div className="flex justify-between items-center group">
+            <span className="text-sm text-text truncate">{selectedFile.name}</span>
+            <button type="button" className="text-error bg-transparent border-none cursor-pointer text-lg p-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => setSelectedFile(null)} disabled={loading}>✕</button>
+          </div>
 
           <div className="space-y-4 mt-4">
             <div>
@@ -103,7 +119,7 @@ export default function UnlockUpload() {
               <input
                 id="unlock-pass"
                 type="password"
-                className="w-full p-2 border border-border rounded-md text-sm"
+                className="w-full p-2 border border-border rounded-md text-sm transition-colors focus:border-primary focus:outline-none"
                 placeholder="Introduce la contraseña"
                 value={password}
                 disabled={loading}
@@ -112,19 +128,22 @@ export default function UnlockUpload() {
             </div>
           </div>
 
-          <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed mt-4" onClick={handleSubmit} disabled={loading || !password}>
-            {loading ? "Desbloqueando..." : "Desbloquear PDF"}
-          </button>
+          <div className="flex items-center gap-3 mt-4">
+            <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleSubmit} disabled={loading || !password}>
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Desbloqueando...
+                </span>
+              ) : "Desbloquear PDF"}
+            </button>
+            {loading && <span className="text-xs text-text-secondary">{progress}%</span>}
+          </div>
+          {loading && <ProgressBar progress={progress} className="mt-3" />}
         </div>
       )}
 
-      {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-error text-sm">{error}</div>}
-      {loading && (
-        <div className="flex items-center justify-center gap-3 mt-6 text-text-secondary text-sm">
-          <div className="w-5 h-5 border-3 border-border border-t-primary rounded-full animate-spin" />
-          <span>Desbloqueando PDF...</span>
-        </div>
-      )}
+      {error && <ErrorState message={error} onRetry={handleSubmit} />}
     </div>
   );
 }

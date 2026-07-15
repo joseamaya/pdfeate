@@ -15,8 +15,12 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { organizeUpload, organizeApply, organizeCleanup, getThumbnailUrl } from "../api/client";
+import { organizeUpload, organizeApply, organizeCleanup, getThumbnailUrl, getPdfDownloadUrl } from "../api/client";
 import type { UploadResult, PageOp } from "../api/client";
+import ProgressBar from "./ProgressBar";
+import ErrorState from "./ErrorState";
+import EmptyState from "./EmptyState";
+import { useToast } from "./Toast";
 
 interface OrganizePage {
   id: string;
@@ -34,10 +38,12 @@ export default function OrganizeUpload() {
   const [originalName, setOriginalName] = useState("");
   const [pages, setPages] = useState<OrganizePage[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -56,8 +62,9 @@ export default function OrganizeUpload() {
     if (!selectedFile) return;
     setUploading(true);
     setError(null);
+    setUploadProgress(0);
     try {
-      const data = await organizeUpload(selectedFile);
+      const data = await organizeUpload(selectedFile, setUploadProgress);
       setFileId(data.id!);
       setOriginalName(data.filename);
       setPages(
@@ -68,6 +75,7 @@ export default function OrganizeUpload() {
         })),
       );
       setPhase("grid");
+      toast("PDF cargado, ahora puedes organizar las páginas", "info");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al subir el PDF");
     } finally {
@@ -110,6 +118,7 @@ export default function OrganizeUpload() {
       const data = await organizeApply(fileId, pageOps);
       setResult(data);
       setPhase("result");
+      toast("PDF organizado correctamente", "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al aplicar cambios");
     } finally {
@@ -128,24 +137,17 @@ export default function OrganizeUpload() {
     setResult(null);
     setError(null);
     setSelectedFile(null);
+    setUploadProgress(0);
   }
 
   if (phase === "grid") {
     return (
-      <div className="max-w-2xl mx-auto px-6 py-8">
+      <div className="animate-fade-in">
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-text-secondary">
             {pages.length} página{pages.length !== 1 ? "s" : ""}
-            {pages.length < (fileId ? pages.length : 0) && (
-              <span className="text-error">
-                {" "}
-                (se eliminaron {result?.page_count
-                  ? result.page_count - pages.length
-                  : 0})
-              </span>
-            )}
           </span>
-          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-colors hover:bg-stone-300" onClick={handleReset} disabled={saving}>
+          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-all hover:bg-stone-300" onClick={handleReset} disabled={saving}>
             Volver
           </button>
         </div>
@@ -167,7 +169,7 @@ export default function OrganizeUpload() {
           </SortableContext>
         </DndContext>
 
-        {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-error text-sm">{error}</div>}
+        {error && <ErrorState message={error} onRetry={handleApply} />}
 
         {saving && (
           <div className="flex items-center justify-center gap-3 mt-6 text-text-secondary text-sm">
@@ -177,7 +179,7 @@ export default function OrganizeUpload() {
         )}
 
         <div className="mt-4">
-          <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleApply} disabled={saving || pages.length === 0}>
+          <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleApply} disabled={saving || pages.length === 0}>
             {saving ? "Guardando..." : "Aplicar cambios y descargar"}
           </button>
         </div>
@@ -187,8 +189,8 @@ export default function OrganizeUpload() {
 
   if (phase === "result") {
     return (
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2">
+      <div className="animate-fade-in">
+        <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2 transition-all hover:shadow-sm">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium text-sm truncate">{originalName}</span>
             {result?.status === "completed" && (
@@ -198,8 +200,8 @@ export default function OrganizeUpload() {
           <div className="flex items-center gap-3 flex-shrink-0">
             {result?.status === "completed" && result?.id && (
               <a
-                className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-colors hover:bg-green-700 inline-block"
-                href={`/api/download-pdf/${result.id}?name=${encodeURIComponent(originalName.replace(/\.pdf$/i, "_organizado.pdf"))}`}
+                className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-all hover:bg-green-700 inline-block"
+                href={getPdfDownloadUrl(result.id, originalName.replace(/\.pdf$/i, "_organizado.pdf"))}
                 download
               >
                 Descargar PDF
@@ -209,7 +211,7 @@ export default function OrganizeUpload() {
           </div>
         </div>
         <div className="mt-4 text-center">
-          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-colors hover:bg-stone-300" onClick={handleReset}>
+          <button className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-all hover:bg-stone-300" onClick={handleReset}>
             Organizar otro PDF
           </button>
         </div>
@@ -218,9 +220,19 @@ export default function OrganizeUpload() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
+    <div>
+      {!selectedFile && !uploading && !error && (
+        <EmptyState
+          icon="📑"
+          title="Organiza las páginas de un PDF"
+          description="Reordena, rota y elimina páginas con arrastrar y soltar"
+        />
+      )}
+
       <div
-        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
+        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer bg-card transition-all hover:border-primary hover:bg-primary-light ${
+          dragOver ? "border-primary bg-primary-light scale-[1.01]" : "border-border"
+        }`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -239,30 +251,28 @@ export default function OrganizeUpload() {
       </div>
 
       {selectedFile && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
-          <h3 className="text-md font-semibold mb-2">Archivo seleccionado</h3>
-          <ul className="space-y-2">
-            <li className="flex justify-between items-center py-1.5 border-b border-border last:border-b-0 text-sm">
-              <span>{selectedFile.name}</span>
-              <button type="button" className="text-error bg-transparent border-none cursor-pointer text-lg p-0.5 hover:text-red-700" onClick={() => setSelectedFile(null)} disabled={uploading}>
-                ✕
-              </button>
-            </li>
-          </ul>
-          <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed mt-3" onClick={handleUpload} disabled={uploading}>
-            {uploading ? "Subiendo..." : "Subir PDF"}
-          </button>
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
+          <div className="flex justify-between items-center group">
+            <span className="text-sm text-text truncate">{selectedFile.name}</span>
+            <button type="button" className="text-error bg-transparent border-none cursor-pointer text-lg p-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => setSelectedFile(null)} disabled={uploading}>✕</button>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4">
+            <button className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-5 py-2 transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleUpload} disabled={uploading}>
+              {uploading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Subiendo...
+                </span>
+              ) : "Subir PDF"}
+            </button>
+            {uploading && <span className="text-xs text-text-secondary">{uploadProgress}%</span>}
+          </div>
+          {uploading && <ProgressBar progress={uploadProgress} className="mt-3" />}
         </div>
       )}
 
-      {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-error text-sm">{error}</div>}
-
-      {uploading && (
-        <div className="flex items-center justify-center gap-3 mt-6 text-text-secondary text-sm">
-          <div className="w-5 h-5 border-3 border-border border-t-primary rounded-full animate-spin" />
-          <span>Procesando PDF...</span>
-        </div>
-      )}
+      {error && <ErrorState message={error} onRetry={handleUpload} />}
     </div>
   );
 }
@@ -289,8 +299,8 @@ function SortableThumbnail({ page, fileId, onRotate, onDelete, disabled }: Sorta
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="bg-card border border-border rounded-xl overflow-hidden flex flex-col">
-      <div className="cursor-grab active:cursor-grabbing px-2 py-1 bg-stone-100 border-b border-border flex items-center select-none" {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className={`bg-card border border-border rounded-xl overflow-hidden flex flex-col transition-shadow ${isDragging ? "shadow-lg" : "shadow-sm"}`}>
+      <div className="cursor-grab active:cursor-grabbing px-2 py-1 bg-stone-100 border-b border-border flex items-center select-none text-text-secondary" {...attributes} {...listeners}>
         <span>⠿</span>
       </div>
       <div className="p-2 flex justify-center items-center bg-bg min-h-36">
@@ -308,7 +318,7 @@ function SortableThumbnail({ page, fileId, onRotate, onDelete, disabled }: Sorta
         <div className="flex items-center gap-1 ml-auto">
           <button
             type="button"
-            className="bg-transparent border border-border rounded cursor-pointer text-sm px-1 py-0.5 text-text-secondary transition-colors hover:bg-card hover:text-text disabled:opacity-40 disabled:cursor-not-allowed leading-none"
+            className="bg-transparent border border-border rounded cursor-pointer text-sm px-1 py-0.5 text-text-secondary transition-all hover:bg-card hover:text-text disabled:opacity-40 disabled:cursor-not-allowed leading-none"
             onClick={() => onRotate(page.id)}
             disabled={disabled}
             title="Rotar 90°"
@@ -317,7 +327,7 @@ function SortableThumbnail({ page, fileId, onRotate, onDelete, disabled }: Sorta
           </button>
           <button
             type="button"
-            className="bg-transparent border border-border rounded cursor-pointer text-sm px-1 py-0.5 text-text-secondary transition-colors hover:bg-card hover:text-text disabled:opacity-40 disabled:cursor-not-allowed leading-none hover:text-error hover:border-error"
+            className="bg-transparent border border-border rounded cursor-pointer text-sm px-1 py-0.5 text-text-secondary transition-all hover:bg-card hover:text-text disabled:opacity-40 disabled:cursor-not-allowed leading-none hover:text-error hover:border-error"
             onClick={() => onDelete(page.id)}
             disabled={disabled}
             title="Eliminar página"

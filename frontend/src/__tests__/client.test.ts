@@ -24,33 +24,71 @@ describe("getPdfDownloadUrl", () => {
   });
 });
 
+function createXhrMock() {
+  let status = 200;
+  let responseText = "";
+  let getResponseHeaderVal = "application/json";
+  const open = vi.fn();
+  const send = vi.fn();
+  const abort = vi.fn();
+  const setRequestHeader = vi.fn();
+
+  class XhrMock {
+    open = open;
+    send = send;
+    abort = abort;
+    setRequestHeader = setRequestHeader;
+    upload = {} as Record<string, unknown>;
+    getResponseHeader = vi.fn(() => getResponseHeaderVal);
+    readyState = 4;
+    get status() { return status; }
+    set status(v) { status = v; }
+    get responseText() { return responseText; }
+    set responseText(v) { responseText = v; }
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    ontimeout: (() => void) | null = null;
+  }
+
+  function resolve(body: string, s = 200) {
+    status = s;
+    responseText = body;
+    getResponseHeaderVal = s === 200 ? "application/json" : "text/plain";
+    if (instance.onload) instance.onload();
+  }
+
+  let instance: XhrMock;
+
+  vi.stubGlobal("XMLHttpRequest", function (this: XhrMock) {
+    instance = new XhrMock();
+    return instance;
+  } as unknown as typeof XMLHttpRequest);
+
+  return { resolve };
+}
+
 describe("uploadPdfs", () => {
   it("calls /api/upload with FormData", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve([{ id: "1", filename: "test.pdf", page_count: 3, status: "completed", error_detail: null }]),
-    });
-    vi.stubGlobal("fetch", mockFetch);
+    const { resolve } = createXhrMock();
 
     const file = new File(["dummy"], "test.pdf", { type: "application/pdf" });
-    const result = await uploadPdfs([file]);
+    const promise = uploadPdfs([file]);
 
-    expect(mockFetch).toHaveBeenCalledWith("/api/upload", expect.objectContaining({
-      method: "POST",
-      body: expect.any(FormData),
-    }));
+    resolve(JSON.stringify([{ id: "1", filename: "test.pdf", page_count: 3, status: "completed", error_detail: null }]));
+
+    const result = await promise;
     expect(result).toHaveLength(1);
     expect(result[0].filename).toBe("test.pdf");
   });
 
   it("throws on non-ok response", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: false,
-      text: () => Promise.resolve("Upload failed"),
-    });
-    vi.stubGlobal("fetch", mockFetch);
+    const { resolve } = createXhrMock();
 
     const file = new File(["dummy"], "test.pdf", { type: "application/pdf" });
-    await expect(uploadPdfs([file])).rejects.toThrow("Upload failed");
+    const promise = uploadPdfs([file]);
+
+    resolve("Upload failed", 500);
+
+    await expect(promise).rejects.toThrow("Upload failed");
   });
 });

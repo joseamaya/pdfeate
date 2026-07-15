@@ -1,11 +1,15 @@
 import { useState } from "react";
-import Skeleton from "../components/Skeleton";
 import { useFileUpload } from "../hooks/useFileUpload";
 import { usePdfOperation } from "../hooks/usePdfOperation";
 import { compressPdf, getPdfDownloadUrl } from "../api/client";
+import Skeleton from "../components/Skeleton";
+import ProgressBar from "../components/ProgressBar";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import { useToast } from "../components/Toast";
 
 export default function CompressSection() {
-  const { loading, error, result, execute, reset, setResult } = usePdfOperation();
+  const { loading, error, result, progress, execute, reset, setResult, setProgress } = usePdfOperation();
   const {
     selectedFiles,
     dragOver,
@@ -20,14 +24,18 @@ export default function CompressSection() {
   });
   const [quality, setQuality] = useState(60);
   const [reduceDpi, setReduceDpi] = useState(true);
+  const { toast } = useToast();
 
   const file = selectedFiles[0] ?? null;
 
   function handleUpload() {
     if (!file) return;
     execute(
-      () => compressPdf(file, quality, reduceDpi),
-      (data) => setResult(data),
+      () => compressPdf(file, quality, reduceDpi, setProgress),
+      (data) => {
+        setResult(data);
+        toast("PDF comprimido correctamente", "success");
+      },
       "Error al comprimir el PDF",
     );
   }
@@ -43,14 +51,19 @@ export default function CompressSection() {
     result?.filename.replace(/\.pdf$/i, "_comprimido.pdf") ?? "";
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
-      <h2 className="text-lg font-semibold text-text mb-1">Comprimir PDF</h2>
-      <p className="text-sm text-text-secondary mb-4">
-        Reduce el tamaño de tu PDF ajustando la calidad y resolución
-      </p>
+    <div>
+      {!file && !loading && !error && !result && (
+        <EmptyState
+          icon="🗜️"
+          title="Comprime un PDF"
+          description="Reduce el tamaño ajustando la calidad de imagen y la resolución"
+        />
+      )}
 
       <div
-        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
+        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer bg-card transition-all hover:border-primary hover:bg-primary-light ${
+          dragOver ? "border-primary bg-primary-light scale-[1.01]" : "border-border"
+        }`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -69,12 +82,12 @@ export default function CompressSection() {
       </div>
 
       {file && !result && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
-          <div className="flex justify-between items-center">
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
+          <div className="flex justify-between items-center group">
             <span className="text-sm text-text truncate">{file.name}</span>
             <button
               type="button"
-              className="text-error bg-transparent border-none cursor-pointer text-lg p-0 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-error bg-transparent border-none cursor-pointer text-lg p-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
               onClick={() => removeFile(0)}
               disabled={loading}
             >
@@ -116,42 +129,42 @@ export default function CompressSection() {
             </label>
           </div>
 
-          <button
-            type="button"
-            className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-4 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={handleUpload}
-            disabled={loading || !file}
-          >
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Comprimiendo...
-              </span>
-            ) : (
-              "Comprimir PDF"
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              type="button"
+              className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleUpload}
+              disabled={loading || !file}
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Comprimiendo...
+                </span>
+              ) : (
+                "Comprimir PDF"
+              )}
+            </button>
+            {loading && (
+              <span className="text-xs text-text-secondary">{progress}%</span>
             )}
-          </button>
-        </div>
-      )}
-
-      {loading && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
-          <Skeleton rows={2} height="h-5" />
-          <div className="flex justify-end mt-3">
-            <div className="w-32 h-9 bg-border rounded-md animate-pulse" />
           </div>
+          {loading && <ProgressBar progress={progress} className="mt-3" />}
         </div>
       )}
 
-      {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-error text-sm">
-          {error}
+      {loading && !file && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
+          <Skeleton rows={2} height="h-5" />
+          <ProgressBar progress={progress} className="mt-3" />
         </div>
       )}
+
+      {error && <ErrorState message={error} onRetry={handleUpload} />}
 
       {result && (
-        <div className="mt-4">
-          <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3">
+        <div className="mt-4 animate-fade-in">
+          <div className="flex justify-between items-center bg-card border border-border rounded-xl p-3 transition-all hover:shadow-sm">
             <div className="flex items-center gap-2 min-w-0">
               <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${result.status === "completed" ? "bg-success" : "bg-error"}`} />
               <span className="text-sm text-text truncate">{result.filename}</span>
@@ -165,7 +178,7 @@ export default function CompressSection() {
               {result.status === "completed" && result.id && (
                 <a
                   href={getPdfDownloadUrl(result.id, downloadName)}
-                  className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-colors hover:bg-green-700"
+                  className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-all hover:bg-green-700"
                   download={downloadName}
                 >
                   Descargar PDF
@@ -178,7 +191,7 @@ export default function CompressSection() {
           </div>
           <button
             type="button"
-            className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-4 transition-colors hover:bg-stone-300"
+            className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-4 transition-all hover:bg-stone-300"
             onClick={handleReset}
           >
             Limpiar todo

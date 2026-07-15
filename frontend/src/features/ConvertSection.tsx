@@ -4,9 +4,13 @@ import { usePdfOperation } from "../hooks/usePdfOperation";
 import { uploadPdfs, getDownloadUrl } from "../api/client";
 import type { UploadResult } from "../api/client";
 import Skeleton from "../components/Skeleton";
+import ProgressBar from "../components/ProgressBar";
+import EmptyState from "../components/EmptyState";
+import ErrorState from "../components/ErrorState";
+import { useToast } from "../components/Toast";
 
 export default function ConvertSection() {
-  const { loading, error, execute, reset } = usePdfOperation();
+  const { loading, error, progress, execute, reset, setProgress } = usePdfOperation();
   const {
     selectedFiles,
     dragOver,
@@ -20,12 +24,16 @@ export default function ConvertSection() {
     validate: (f) => f.type === "application/pdf" || f.name.endsWith(".pdf"),
   });
   const [results, setResults] = useState<UploadResult[]>([]);
+  const { toast } = useToast();
 
   function handleUpload() {
     if (selectedFiles.length === 0) return;
     execute(
-      () => uploadPdfs(selectedFiles),
-      (data) => setResults(data),
+      () => uploadPdfs(selectedFiles, setProgress),
+      (data) => {
+        setResults(data);
+        toast("Conversión completada", "success");
+      },
       "Error al subir los archivos",
     );
   }
@@ -36,15 +44,22 @@ export default function ConvertSection() {
     setResults([]);
   }
 
+  const hasContent = selectedFiles.length > 0 || loading || error || results.length > 0;
+
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
-      <h2 className="text-lg font-semibold text-text mb-1">Convertir PDF a JPG</h2>
-      <p className="text-sm text-text-secondary mb-4">
-        Convierte las páginas de tus PDFs en imágenes JPG de alta calidad
-      </p>
+    <div>
+      {!hasContent && (
+        <EmptyState
+          icon="🖼️"
+          title="Convierte tus PDFs a JPG"
+          description="Cada página del PDF se convertirá en una imagen JPG de alta calidad"
+        />
+      )}
 
       <div
-        className={`border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer bg-card transition-colors hover:border-primary ${dragOver ? "border-primary bg-primary-light" : ""}`}
+        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer bg-card transition-all hover:border-primary hover:bg-primary-light ${
+          dragOver ? "border-primary bg-primary-light scale-[1.01]" : "border-border"
+        }`}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
@@ -63,15 +78,15 @@ export default function ConvertSection() {
         </p>
       </div>
 
-      {selectedFiles.length > 0 && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
+      {selectedFiles.length > 0 && !results.length && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
           <div className="space-y-2">
             {selectedFiles.map((file, i) => (
-              <div key={i} className="flex justify-between items-center">
+              <div key={i} className="flex justify-between items-center group">
                 <span className="text-sm text-text truncate">{file.name}</span>
                 <button
                   type="button"
-                  className="text-error bg-transparent border-none cursor-pointer text-lg p-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="text-error bg-transparent border-none cursor-pointer text-lg p-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                   onClick={() => removeFile(i)}
                   disabled={loading}
                 >
@@ -80,43 +95,43 @@ export default function ConvertSection() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-4 transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={handleUpload}
-            disabled={loading || selectedFiles.length === 0}
-          >
-            {loading ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Subiendo...
-              </span>
-            ) : (
-              "Subir y convertir"
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              type="button"
+              className="bg-primary text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 transition-all hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleUpload}
+              disabled={loading || selectedFiles.length === 0}
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Subiendo...
+                </span>
+              ) : (
+                "Subir y convertir"
+              )}
+            </button>
+            {loading && (
+              <span className="text-xs text-text-secondary">{progress}%</span>
             )}
-          </button>
-        </div>
-      )}
-
-      {loading && (
-        <div className="mt-4 bg-card border border-border rounded-xl p-4">
-          <Skeleton rows={2} height="h-5" />
-          <div className="flex justify-end mt-3">
-            <div className="w-32 h-9 bg-border rounded-md animate-pulse" />
           </div>
+          {loading && <ProgressBar progress={progress} className="mt-3" />}
         </div>
       )}
 
-      {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-error text-sm">
-          {error}
+      {loading && !selectedFiles.length && (
+        <div className="mt-4 bg-card border border-border rounded-xl p-4 animate-fade-in">
+          <Skeleton rows={2} height="h-5" />
+          <ProgressBar progress={progress} className="mt-3" />
         </div>
       )}
+
+      {error && <ErrorState message={error} onRetry={handleUpload} />}
 
       {results.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-4 animate-fade-in">
           {results.map((r, i) => (
-            <div key={i} className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2">
+            <div key={i} className="flex justify-between items-center bg-card border border-border rounded-xl p-3 mb-2 transition-all hover:shadow-sm">
               <div className="flex items-center gap-2 min-w-0">
                 <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.status === "completed" ? "bg-success" : "bg-error"}`} />
                 <span className="text-sm text-text truncate">{r.filename}</span>
@@ -130,7 +145,7 @@ export default function ConvertSection() {
                 {r.status === "completed" && r.id && (
                   <a
                     href={getDownloadUrl(r.id)}
-                    className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-colors hover:bg-green-700"
+                    className="bg-success text-white rounded-md text-sm font-medium cursor-pointer px-4 py-2 no-underline transition-all hover:bg-green-700"
                     download
                   >
                     Descargar ZIP
@@ -144,7 +159,7 @@ export default function ConvertSection() {
           ))}
           <button
             type="button"
-            className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-2 transition-colors hover:bg-stone-300"
+            className="bg-border text-text rounded-md text-sm font-medium cursor-pointer px-4 py-2 mt-2 transition-all hover:bg-stone-300"
             onClick={handleReset}
           >
             Limpiar todo

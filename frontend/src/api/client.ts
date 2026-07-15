@@ -6,14 +6,40 @@ export interface UploadResult {
   error_detail: string | null;
 }
 
-export async function uploadPdfs(files: File[]): Promise<UploadResult[]> {
+function uploadFormData(url: string, formData: FormData, onProgress?: (pct: number) => void): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      resolve(new Response(xhr.responseText, {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: { "content-type": xhr.getResponseHeader("content-type") ?? "" },
+      }));
+    };
+
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.ontimeout = () => reject(new Error("Request timed out"));
+
+    xhr.send(formData);
+  });
+}
+
+export async function uploadPdfs(
+  files: File[],
+  onProgress?: (pct: number) => void,
+): Promise<UploadResult[]> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/upload", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -23,14 +49,14 @@ export async function uploadPdfs(files: File[]): Promise<UploadResult[]> {
   return res.json();
 }
 
-export async function mergeUpload(files: File[]): Promise<UploadResult> {
+export async function mergeUpload(
+  files: File[],
+  onProgress?: (pct: number) => void,
+): Promise<UploadResult> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const res = await fetch("/api/merge", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/merge", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -45,6 +71,7 @@ export async function splitPdf(
   mode: string,
   everyN?: number,
   ranges?: string,
+  onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
@@ -52,10 +79,7 @@ export async function splitPdf(
   if (everyN !== undefined) formData.append("every_n", String(everyN));
   if (ranges !== undefined) formData.append("ranges", ranges);
 
-  const res = await fetch("/api/split", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/split", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -69,16 +93,14 @@ export async function compressPdf(
   file: File,
   quality: number,
   reduceDpi: boolean,
+  onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("quality", String(quality));
   formData.append("reduce_dpi", String(reduceDpi));
 
-  const res = await fetch("/api/compress", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/compress", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -93,14 +115,14 @@ export interface PageOp {
   rotate: number;
 }
 
-export async function organizeUpload(file: File): Promise<UploadResult> {
+export async function organizeUpload(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch("/api/organize/upload", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/organize/upload", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -137,16 +159,14 @@ export async function extractPages(
   file: File,
   pages: string,
   output: "zip" | "pdf",
+  onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("pages", pages);
   formData.append("output", output);
 
-  const res = await fetch("/api/extract", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/extract", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -161,6 +181,7 @@ export async function addWatermark(
   text: string,
   opacity: number,
   position: string,
+  onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
@@ -168,10 +189,7 @@ export async function addWatermark(
   formData.append("opacity", String(opacity));
   formData.append("position", position);
 
-  const res = await fetch("/api/watermark", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/watermark", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -181,15 +199,16 @@ export async function addWatermark(
   return res.json();
 }
 
-export async function protectPdf(file: File, password: string): Promise<UploadResult> {
+export async function protectPdf(
+  file: File,
+  password: string,
+  onProgress?: (pct: number) => void,
+): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("password", password);
 
-  const res = await fetch("/api/protect", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/protect", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
@@ -199,15 +218,16 @@ export async function protectPdf(file: File, password: string): Promise<UploadRe
   return res.json();
 }
 
-export async function unlockPdf(file: File, password: string): Promise<UploadResult> {
+export async function unlockPdf(
+  file: File,
+  password: string,
+  onProgress?: (pct: number) => void,
+): Promise<UploadResult> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("password", password);
 
-  const res = await fetch("/api/unlock", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await uploadFormData("/api/unlock", formData, onProgress);
 
   if (!res.ok) {
     const text = await res.text();
