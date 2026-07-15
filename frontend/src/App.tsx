@@ -7,6 +7,7 @@ import SplitUpload from "./components/SplitUpload";
 import SplitResult from "./components/SplitResult";
 import CompressUpload from "./components/CompressUpload";
 import CompressResult from "./components/CompressResult";
+import OrganizeUpload from "./components/OrganizeUpload";
 import type { UploadResult } from "./api/client";
 import { uploadPdfs, mergeUpload, splitPdf, compressPdf } from "./api/client";
 import "./App.css";
@@ -84,7 +85,7 @@ export default function App() {
     <div className="container">
       <header>
         <h1>PDFeate</h1>
-        <p>Sube PDFs e imágenes para convertirlos, unirlos o dividirlos</p>
+        <p>Sube PDFs e imágenes para convertirlos, unirlos, dividirlos u organizarlos</p>
       </header>
 
       <section className="section">
@@ -139,6 +140,15 @@ export default function App() {
             </button>
           </div>
         )}
+      </section>
+
+      <hr className="section-divider" />
+
+      <section className="section">
+        <h2 className="section-title">Organizar páginas</h2>
+        <p className="section-desc">Reordena, rota y elimina páginas con arrastrar y soltar</p>
+
+        <OrganizeUpload />
       </section>
 
       <hr className="section-divider" />

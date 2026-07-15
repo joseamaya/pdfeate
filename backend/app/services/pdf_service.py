@@ -11,7 +11,17 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 from pypdf import PdfReader, PdfWriter
 
-from app.config import UPLOAD_DIR, JPG_QUALITY, PDF_DPI, SPLIT_MAX_PAGES, COMPRESS_QUALITY, COMPRESS_DPI
+from app.config import (
+    UPLOAD_DIR,
+    JPG_QUALITY,
+    PDF_DPI,
+    SPLIT_MAX_PAGES,
+    COMPRESS_QUALITY,
+    COMPRESS_DPI,
+    THUMBNAIL_SIZE,
+    THUMBNAIL_QUALITY,
+    ORGANIZE_MAX_PAGES,
+)
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -207,6 +217,77 @@ class PdfService:
             quality=quality,
         )
         return total
+
+    def organize_upload(self, file_bytes: bytes, filename: str) -> tuple[str, int]:
+        file_id = uuid.uuid4().hex
+        pdf_path = UPLOAD_DIR / f"{file_id}.pdf"
+        pdf_path.write_bytes(file_bytes)
+
+        reader = PdfReader(io.BytesIO(file_bytes))
+        total_pages = len(reader.pages)
+        if total_pages == 0:
+            raise ValueError("El PDF no contiene páginas.")
+        if total_pages > ORGANIZE_MAX_PAGES:
+            raise ValueError(
+                f"El PDF tiene {total_pages} páginas. "
+                f"El límite máximo es {ORGANIZE_MAX_PAGES}."
+            )
+
+        images = convert_from_bytes(file_bytes, dpi=72)
+        for i, img in enumerate(images, start=1):
+            thumb = img.copy()
+            thumb.thumbnail((THUMBNAIL_SIZE, int(THUMBNAIL_SIZE * 1.4)))
+            thumb_path = UPLOAD_DIR / f"{file_id}_thumb_{i}.jpg"
+            thumb.save(thumb_path, "JPEG", quality=THUMBNAIL_QUALITY)
+        return file_id, total_pages
+
+    @staticmethod
+    def get_thumbnail_path(file_id: str, page: int) -> Path:
+        thumb_path = UPLOAD_DIR / f"{file_id}_thumb_{page}.jpg"
+        if not thumb_path.exists():
+            pdf_path = UPLOAD_DIR / f"{file_id}.pdf"
+            if not pdf_path.exists():
+                raise FileNotFoundError(f"PDF {file_id} not found")
+            pdf_bytes = pdf_path.read_bytes()
+            images = convert_from_bytes(pdf_bytes, dpi=72, first_page=page, last_page=page)
+            if not images:
+                raise ValueError(f"Página {page} no encontrada")
+            thumb = images[0]
+            thumb.thumbnail((THUMBNAIL_SIZE, int(THUMBNAIL_SIZE * 1.4)))
+            thumb.save(thumb_path, "JPEG", quality=THUMBNAIL_QUALITY)
+        return thumb_path
+
+    def apply_organization(self, file_id: str, page_ops: list[dict]) -> tuple[str, int]:
+        pdf_path = UPLOAD_DIR / f"{file_id}.pdf"
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF {file_id} no encontrado")
+
+        reader = PdfReader(pdf_path)
+        writer = PdfWriter()
+        for op in page_ops:
+            orig = op["page"]
+            rotate = op.get("rotate", 0)
+            if orig < 1 or orig > len(reader.pages):
+                raise ValueError(
+                    f"Número de página {orig} fuera de rango (1-{len(reader.pages)})"
+                )
+            page = reader.pages[orig - 1]
+            if rotate:
+                page.rotate(rotate)
+            writer.add_page(page)
+
+        output_id = uuid.uuid4().hex
+        output_path = UPLOAD_DIR / f"{output_id}.pdf"
+        writer.write(output_path)
+        return output_id, len(page_ops)
+
+    @staticmethod
+    def cleanup_organize(file_id: str) -> None:
+        pdf_path = UPLOAD_DIR / f"{file_id}.pdf"
+        if pdf_path.exists():
+            pdf_path.unlink()
+        for p in UPLOAD_DIR.glob(f"{file_id}_thumb_*.jpg"):
+            p.unlink()
 
     @staticmethod
     def get_zip_path(zip_id: str) -> Path:

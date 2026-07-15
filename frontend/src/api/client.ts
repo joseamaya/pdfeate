@@ -88,6 +88,51 @@ export async function compressPdf(
   return res.json();
 }
 
+export interface PageOp {
+  page: number;
+  rotate: number;
+}
+
+export async function organizeUpload(file: File): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch("/api/organize/upload", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Upload failed");
+  }
+
+  return res.json();
+}
+
+export async function organizeApply(fileId: string, pages: PageOp[]): Promise<UploadResult> {
+  const res = await fetch("/api/organize/apply", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_id: fileId, pages }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Apply failed");
+  }
+
+  return res.json();
+}
+
+export function getThumbnailUrl(fileId: string, page: number): string {
+  return `/api/organize/thumbnail/${fileId}/${page}`;
+}
+
+export async function organizeCleanup(fileId: string): Promise<void> {
+  await fetch(`/api/organize/cleanup/${fileId}`, { method: "DELETE" });
+}
+
 export function getDownloadUrl(id: string): string {
   return `/api/download/${id}`;
 }

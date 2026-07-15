@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from app.config import ALLOWED_EXTENSIONS, ALLOWED_MERGE_EXTENSIONS, MAX_FILE_SIZE
@@ -104,6 +104,87 @@ async def merge_files(files: list[UploadFile] = File(...)):
                 status="error",
                 error_detail=str(exc),
             )
+
+
+class PageOp(BaseModel):
+    page: int
+    rotate: int = 0
+
+
+class OrganizeApplyRequest(BaseModel):
+    file_id: str
+    pages: list[PageOp]
+
+
+@router.post("/organize/upload", response_model=FileResult)
+async def organize_upload(file: UploadFile = File(...)):
+    try:
+        _validate_file(file)
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail=f"{file.filename} exceeds size limit")
+
+        file_id, total_pages = await asyncio.to_thread(
+            pdf_service.organize_upload, contents, file.filename or "untitled"
+        )
+        return FileResult(
+            id=file_id,
+            filename=file.filename or "untitled",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename=file.filename or "untitled",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.get("/organize/thumbnail/{file_id}/{page}")
+async def organize_thumbnail(file_id: str, page: int):
+    try:
+        thumb_path = pdf_service.get_thumbnail_path(file_id, page)
+        return FileResponse(
+            path=thumb_path,
+            media_type="image/jpeg",
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/organize/apply", response_model=FileResult)
+async def organize_apply(req: OrganizeApplyRequest):
+    try:
+        if not req.pages:
+            raise HTTPException(status_code=400, detail="No se especificaron páginas.")
+        file_id, total_pages = await asyncio.to_thread(
+            pdf_service.apply_organization, req.file_id, [p.model_dump() for p in req.pages]
+        )
+        return FileResult(
+            id=file_id,
+            filename="organizado.pdf",
+            page_count=total_pages,
+            status="completed",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return FileResult(
+            filename="organizado.pdf",
+            status="error",
+            error_detail=str(exc),
+        )
+
+
+@router.delete("/organize/cleanup/{file_id}", status_code=204)
+async def organize_cleanup(file_id: str):
+    await asyncio.to_thread(pdf_service.cleanup_organize, file_id)
+    return Response(status_code=204)
 
     try:
         file_id, total_pages = await asyncio.to_thread(

@@ -410,6 +410,138 @@ header p {
   accent-color: var(--primary);
 }
 
+/* ---- Organize ---- */
+.organize-container {
+  margin-top: 0;
+}
+
+.organize-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.organize-toolbar-info {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.organize-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.organize-thumb {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.organize-thumb-handle {
+  cursor: grab;
+  padding: 0.3rem 0.5rem;
+  background: #f5f5f4;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.organize-thumb-handle:active {
+  cursor: grabbing;
+}
+
+.organize-thumb-drag {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.organize-thumb-image-wrap {
+  padding: 0.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #fafaf9;
+  min-height: 140px;
+}
+
+.organize-thumb-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.organize-thumb-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  background: #f5f5f4;
+}
+
+.organize-thumb-page {
+  font-weight: 500;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.organize-thumb-rotate-badge {
+  font-size: 0.7rem;
+  background: var(--primary);
+  color: white;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.organize-thumb-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.organize-btn-icon {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.15rem 0.35rem;
+  color: var(--text-secondary);
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.organize-btn-icon:hover:not(:disabled) {
+  background: var(--card);
+  color: var(--text);
+}
+
+.organize-btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.organize-btn-delete:hover:not(:disabled) {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.organize-actions {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
 /* ---- Reset ---- */
 .reset-container {
   text-align: center;
